@@ -582,8 +582,8 @@ async def find_time():
 @router.message()
 async def open_ai(message: Message):
     text = message.text
-    openai.api_key = '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'
-    model = 'gpt-3.5'
+    openai.api_key = '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'
+    model = 'gpt-4.1'
     data = [{'role': 'user', 'content': text}]
     response = openai.chat.completions.create(model = model, messages = data)
     await message.answer(text = response.choices[0].message.content)    
