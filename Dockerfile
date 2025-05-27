@@ -4,5 +4,5 @@ WORKDIR /app
 COPY . . 
 #RUN python -m venv venv
 #RUN venv/bin/activate
-RUN pip install asyncpg SQLAlchemy aiogram python-dotenv requests openai
+RUN pip install asyncpg SQLAlchemy aiogram python-dotenv requests openai aiosqlite
 RUN python bot.py
