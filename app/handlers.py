@@ -583,7 +583,7 @@ async def find_time():
 async def open_ai(message: Message):
     text = message.text
     openai.api_key = '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'
-    model = 'gpt-4.1'
+    model = 'gpt-3.5'
     data = [{'role': 'user', 'content': text}]
     response = openai.chat.completions.create(model = model, messages = data)
     await message.answer(text = response.choices[0].message.content)    
