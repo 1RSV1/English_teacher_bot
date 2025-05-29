@@ -65,7 +65,7 @@ async def handle_all_audios(message: Message):
     tts = gTTS(text= text_gpt, lang="en")
     tts.save(f'audio/{message.from_user.id}.mp3') # сохраняет только в mp3
     audio = AudioSegment.from_mp3(f'audio/{message.from_user.id}.mp3') # install ffmpeg on ubuntu
-    audio.export(f'audio/{message.from_user.id}.oga', format='ogg', codec='libvorbis')
+    audio.export(f'audio/{message.from_user.id}.oga', format='oga', codec='libvorbis')
     '''
     command = [
         'ffmpeg',
