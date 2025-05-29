@@ -81,7 +81,7 @@ async def handle_all_audios(message: Message):
     except subprocess.CalledProcessError as e:
         print(f"Conversion failed: {e}")
     '''    
-    voice = FSInputFile(f'audio/{message.from_user.id}.ogg', filename = 'gg')
+    voice = FSInputFile(f'audio/{message.from_user.id}.oga', filename = 'gg')
     await bot.send_voice(chat_id = message.from_user.id, voice = voice)  
     
     
