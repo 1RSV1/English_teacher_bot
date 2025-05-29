@@ -64,8 +64,9 @@ async def handle_all_audios(message: Message):
         lang = 'ru'   
     tts = gTTS(text= text_gpt, lang="en")
     tts.save(f'audio/{message.from_user.id}.mp3') # сохраняет только в mp3
-    #audio = AudioSegment.from_mp3(f'audio/{message.from_user.id}.mp3') # install ffmpeg on ubuntu
-    #audio.export(f'audio/{message.from_user.id}.ogg', format='ogg', codec='libvorbis')
+    audio = AudioSegment.from_mp3(f'audio/{message.from_user.id}.mp3') # install ffmpeg on ubuntu
+    audio.export(f'audio/{message.from_user.id}.oga', format='ogg', codec='libvorbis')
+    '''
     command = [
         'ffmpeg',
         '-i', f'audio/{message.from_user.id}.mp3',
@@ -79,6 +80,7 @@ async def handle_all_audios(message: Message):
         print("Conversion successful")
     except subprocess.CalledProcessError as e:
         print(f"Conversion failed: {e}")
+    '''    
     voice = FSInputFile(f'audio/{message.from_user.id}.ogg', filename = 'gg')
     await bot.send_voice(chat_id = message.from_user.id, voice = voice)  
     
