@@ -78,17 +78,31 @@ async def cmd_start(message: Message):
     else:
         await message.answer('Привет, ' + message.from_user.first_name + '. Это бот для изучения английского языка. Выполняй задания, соревнуйся с другими участниками, отслеживай свой прогресс с помощью тестов' + '\n' +  '\n' + await rq.retrieve_rate(message.from_user.id))
 
+@router.message(Command('regular'))
+async def cmd_regular(message: Message):
+    object_poll = await message.answer_poll( 
+                                            question= 'newww', 
+                                            open_period = 60, 
+                                            options= [input_poll_option.InputPollOption(text = 'option1'), input_poll_option.InputPollOption(text = 'option2'), input_poll_option.InputPollOption(text = 'option3')], 
+                                            type = 'regular',
+                                            is_anonymous= False,
+                                            allows_multiple_answers = True,
+                                            explanation = 'rr', 
+                                            explanation_entities = [MessageEntity(type = 'text_mention', offset = 0, length = 2, user = User(id = message.from_user.id, is_bot = False, first_name = 'vad'))]                        
+                                            )
+    await storage.redis.set(name = str(message.from_user.id)+ '_regular', value = object_poll.message_id , ex = 60)
 
 @router.message(Command('quiz'), flags={'chat_action': 'typing', 'rate_limit': {'rate': 5}})
 @flags.chat_action(initial_sleep=0, action="typing", interval=3)
 async def cmd_poll(message: Message):
-    first = await rq.retrieve_three_quizes(Quizes ,1, storage = storage)
+    first = await rq.retrieve_three_quizes(Quizes ,1, message.from_user.id, storage = storage)
     option1 = first['option1']
     options = []
     for x, y in first.items():
         if x.startswith('option') and y:
             options.append(input_poll_option.InputPollOption(text= first[x]))
-    await message.answer_poll( 
+    random.shuffle(options)        
+    object_poll = await message.answer_poll( 
         question= first['question'], 
         open_period = int(first['open_period']), # переделать в цифру в бд
         options= options, 
@@ -97,40 +111,70 @@ async def cmd_poll(message: Message):
         explanation = first['explanation'], 
         explanation_entities = [MessageEntity(type = 'text_mention', offset = 0, length = len(first['explanation']), user = User(id = message.from_user.id, is_bot = False, first_name = 'vad'))]                        
         )
+    await storage.redis.set(name = str(message.from_user.id)+ '_quiz_id', value = object_poll.message_id , ex = 60)
     
 
 @router.poll()
 async def poll_answer_handler(poll: Poll):
-    voter_count = 0
-    rightans = False
-    length = poll.explanation_entities[0].length
-    for i in range(len(poll.options)):
-        if poll.options[i].voter_count:
-            voter_count += 1
-        if poll.options[i].voter_count == 1 and i == poll.correct_option_id:
-            rightans = True
-    if  voter_count > 1:
-            return   
-    if not rightans:
-        #if poll.explanation_entities[0].length == len(poll.explanation):
-        length = poll.explanation_entities[0].length - 1
-        #else:
-            #length = poll.explanation_entities[0].length - 2
+    try:
+        message_id = await storage.redis.get(name = str(poll.explanation_entities[0].user.id) + '_quiz_id')
+        await bot.stop_poll(chat_id = poll.explanation_entities[0].user.id, message_id = message_id, reply_markup= kb.choice)
+        print(poll)
+        d = await storage.redis.get(name = str(poll.explanation_entities[0].user.id) + '_quiz')
+        d = json.loads(d.decode())
+
+        voter_count = 0
+        for i in range(len(poll.options)):
+            if poll.options[i].voter_count:
+                voter_count += poll.options[i].voter_count
+            if poll.options[i].voter_count == 1 and i == poll.correct_option_id:
+                d['ans'] += 1
+        if  voter_count > 1:
+                return   
+            
+        if d['second']:
+            option1 = d['second']['option1']
+            options = []
+            for x, y in d['second'].items():
+                if x.startswith('option') and y:
+                    options.append(input_poll_option.InputPollOption(text= d['second'][x]))
+            random.shuffle(options)        
+            await bot.send_poll( 
+                                chat_id = poll.explanation_entities[0].user.id,
+                                question= d['second']['question'], 
+                                open_period = int(d['second']['open_period']), # переделать в цифру в бд
+                                options= options, 
+                                correct_option_id= options.index(input_poll_option.InputPollOption(text = option1)),
+                                type = 'quiz',
+                                explanation = d['second']['explanation'], 
+                                explanation_entities = [MessageEntity(type = 'text_mention', offset = 0, length = len(d['second']['explanation']), user = User(id = poll.explanation_entities[0].user.id, is_bot = False, first_name = 'vad'))]                        
+                                )
+            d['second'] = 0
+            await storage.redis.set(name = str(poll.explanation_entities[0].user.id)+ '_quiz', value = json.dumps(d), ex = 60)
         
-    if poll.question[:3] =='1️⃣':
-        await bot.send_poll(chat_id = poll.explanation_entities[0].user.id, open_period = 10, explanation = poll.explanation, 
-                            explanation_entities = [MessageEntity(type = 'text_mention', offset = 0, length = length, user = User(id = poll.explanation_entities[0].user.id, is_bot = False, first_name= 'v'), extra_data = {'id': 155269575}), MessageEntity(type = 'custom_emoji', offset = 10, length = 0, custom_emoji_id = '23', extra_data = {'id': 155269575})], 
-                            question= '2️⃣ второй', options= [input_poll_option.InputPollOption(text= 'impossible', voter_count = 10), input_poll_option.InputPollOption(text= 'inappropriate', voter_count= 10), input_poll_option.InputPollOption(text= 'inevitable', voter_count= 10)], correct_option_id= 0, type = 'quiz', reply_markup = await rq.markupp(155269575, 33))
-    
-    elif poll.question[:3] == '2️⃣':
-        await bot.send_poll(chat_id = poll.explanation_entities[0].user.id, open_period = 10, explanation = poll.explanation,
-                            explanation_entities = [MessageEntity(type = 'text_mention', offset = 0, length = length, user = User(id = poll.explanation_entities[0].user.id, is_bot = False, first_name= 'v'), extra_data = {'id': 155269575}), MessageEntity(type = 'custom_emoji', offset = 10, length = 0, custom_emoji_id = '23', extra_data = {'id': 155269575})], 
-                            question= '3️⃣ третий', options= [input_poll_option.InputPollOption(text= 'impossible', voter_count = 10), input_poll_option.InputPollOption(text= 'inappropriate', voter_count= 10), input_poll_option.InputPollOption(text= 'inevitable', voter_count= 10)], correct_option_id= 0, type = 'quiz')
-    
-    else:
-        mistake = len(poll.explanation) - length
-        await bot.send_message(chat_id = poll.explanation_entities[0].user.id, text =f"правильно ответил: {3 - mistake}")
-    
+        elif d['third']:
+            option1 = d['third']['option1']
+            options = []
+            for x, y in d['third'].items():
+                if x.startswith('option') and y:
+                    options.append(input_poll_option.InputPollOption(text= d['third'][x]))
+            random.shuffle(options)        
+            await bot.send_poll( 
+                                chat_id = poll.explanation_entities[0].user.id,
+                                question= d['third']['question'], 
+                                open_period = int(d['third']['open_period']), # переделать в цифру в бд
+                                options= options, 
+                                correct_option_id= options.index(input_poll_option.InputPollOption(text = option1)),
+                                type = 'quiz',
+                                explanation = d['third']['explanation'], 
+                                explanation_entities = [MessageEntity(type = 'text_mention', offset = 0, length = len(d['third']['explanation']), user = User(id = poll.explanation_entities[0].user.id, is_bot = False, first_name = 'vad'))]                        
+                                )
+            d['third'] = 0
+            await storage.redis.set(name = str(poll.explanation_entities[0].user.id)+ '_quiz', value = json.dumps(d), ex = 60)
+        else:
+            await bot.send_message(chat_id = poll.explanation_entities[0].user.id, text =f"правильно ответил: {d['ans']}")
+    except:
+        print(poll)
 
             # обнуление counter
     #poll.explanation = 'затерли но передали'
@@ -140,8 +184,11 @@ async def poll_answer_handler(poll: Poll):
     #await bot.send_poll(chat_id = 155269575, question= f'poll id {poll.id} {poll.question}', options= [input_poll_option.InputPollOption(text= 'impossible', voter_count = 10), input_poll_option.InputPollOption(text= 'inappropriate', voter_count= 10), input_poll_option.InputPollOption(text= 'inevitable', voter_count= 10)], correct_option_id= 0, type = 'quiz')
     #await bot.forward_message(chat_id= '@eng_poll', from_chat_id = poll_answer.user.id, message_id = 4007)
 
-#@router.poll_answer(flags={'NNNNNNNN': 'typing', 'rate_limit': {'rate': 5}, 'message': Message})
-#async def poll_answer_handler(poll_answer: PollAnswer):
+@router.poll_answer()
+async def poll_answer_handler(poll_answer: PollAnswer):
+    print(poll_answer)
+    message_id = await storage.redis.get(name = str(poll_answer.user.id) + '_regular')
+    await bot.stop_poll(chat_id = poll_answer.user.id, message_id = message_id, reply_markup= kb.choice)
     #flags = getattr(handler, 'flags', {})
     #message = flags.get('message')
     #print(poll_answer.poll.extra_data)

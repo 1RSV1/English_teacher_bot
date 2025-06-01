@@ -120,18 +120,18 @@ async def retrieve_datalist(table, id):
         #print(listt)         
         return  listt   
 
-async def retrieve_three_quizes(table, id, storage = RedisStorage):
+async def retrieve_three_quizes(table, id, tg_id, storage = RedisStorage):
     async with async_session() as session:
         d = {}
         info = await session.execute(select(table).where(table.id >= id).where(table.id < id + 3)) 
         db_string_list = info.scalars().all()
         first = db_string_list[0].__dict__
-        db_string_list[1].__dict__.pop('_sa_instance_state')
-        db_string_list[2].__dict__.pop('_sa_instance_state')
+        db_string_list[1].__dict__.pop('_sa_instance_state') # чтобы словарь упаковать в json
+        db_string_list[2].__dict__.pop('_sa_instance_state') # чтобы словарь упаковать в json
         d['second'] = db_string_list[1].__dict__
         d['third'] = db_string_list[2].__dict__
-
-        await storage.redis.set(name = id, value = json.dumps(d), ex = 60)
+        d['ans'] = 0
+        await storage.redis.set(name = str(tg_id)+ '_quiz', value = json.dumps(d), ex = 60)
         
         return first
     
