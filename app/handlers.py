@@ -9,7 +9,7 @@ from app.middlewares import PollAnswerMiddle, PollMiddle, MessageMiddle # имп
 import app.database.requests as rq
 import datetime
 from app.database.requests import  Questions, MyCallback3, Variable, Variable2, Payment, Conditionals, Control
-from app.database.models import async_session, Preposition, Test2, Test, Question, Quizes
+from app.database.models import async_session, Preposition, Test2, Test, Question, Quizes, Regular
 from sqlalchemy import select, func
 from aiogram.methods import DeleteMessage, EditMessageText
 from aiogram.utils.chat_action import ChatActionMiddleware
@@ -36,7 +36,7 @@ from gtts import gTTS
 
 
 
-storage = RedisStorage.from_url('redis://default:.g%7B%2BA0La%3B-%3FkSp@92.118.113.44:6379')
+storage = RedisStorage.from_url('redis://default:%2CE%3FYhUP7rq%2C%5C54@147.45.106.233:6379')
 
 
 
@@ -78,19 +78,7 @@ async def cmd_start(message: Message):
     else:
         await message.answer('Привет, ' + message.from_user.first_name + '. Это бот для изучения английского языка. Выполняй задания, соревнуйся с другими участниками, отслеживай свой прогресс с помощью тестов' + '\n' +  '\n' + await rq.retrieve_rate(message.from_user.id))
 
-@router.message(Command('regular'))
-async def cmd_regular(message: Message):
-    object_poll = await message.answer_poll( 
-                                            question= 'newww', 
-                                            open_period = 60, 
-                                            options= [input_poll_option.InputPollOption(text = 'option1'), input_poll_option.InputPollOption(text = 'option2'), input_poll_option.InputPollOption(text = 'option3')], 
-                                            type = 'regular',
-                                            is_anonymous= False,
-                                            allows_multiple_answers = True,
-                                            explanation = 'rr', 
-                                            explanation_entities = [MessageEntity(type = 'text_mention', offset = 0, length = 2, user = User(id = message.from_user.id, is_bot = False, first_name = 'vad'))]                        
-                                            )
-    await storage.redis.set(name = str(message.from_user.id)+ '_regular', value = object_poll.message_id , ex = 60)
+
 
 @router.message(Command('quiz'), flags={'chat_action': 'typing', 'rate_limit': {'rate': 5}})
 @flags.chat_action(initial_sleep=0, action="typing", interval=3)
@@ -111,15 +99,12 @@ async def cmd_poll(message: Message):
         explanation = first['explanation'], 
         explanation_entities = [MessageEntity(type = 'text_mention', offset = 0, length = len(first['explanation']), user = User(id = message.from_user.id, is_bot = False, first_name = 'vad'))]                        
         )
-    await storage.redis.set(name = str(message.from_user.id)+ '_quiz_id', value = object_poll.message_id , ex = 60)
+    
     
 
 @router.poll()
 async def poll_answer_handler(poll: Poll):
     try:
-        message_id = await storage.redis.get(name = str(poll.explanation_entities[0].user.id) + '_quiz_id')
-        await bot.stop_poll(chat_id = poll.explanation_entities[0].user.id, message_id = message_id, reply_markup= kb.choice)
-        print(poll)
         d = await storage.redis.get(name = str(poll.explanation_entities[0].user.id) + '_quiz')
         d = json.loads(d.decode())
 
@@ -174,7 +159,7 @@ async def poll_answer_handler(poll: Poll):
         else:
             await bot.send_message(chat_id = poll.explanation_entities[0].user.id, text =f"правильно ответил: {d['ans']}")
     except:
-        print(poll)
+        pass
 
             # обнуление counter
     #poll.explanation = 'затерли но передали'
@@ -184,11 +169,81 @@ async def poll_answer_handler(poll: Poll):
     #await bot.send_poll(chat_id = 155269575, question= f'poll id {poll.id} {poll.question}', options= [input_poll_option.InputPollOption(text= 'impossible', voter_count = 10), input_poll_option.InputPollOption(text= 'inappropriate', voter_count= 10), input_poll_option.InputPollOption(text= 'inevitable', voter_count= 10)], correct_option_id= 0, type = 'quiz')
     #await bot.forward_message(chat_id= '@eng_poll', from_chat_id = poll_answer.user.id, message_id = 4007)
 
+@router.message(Command('regular'))
+async def cmd_regular(message: Message):
+    first = await rq.retrieve_three_regulars(Regular , 1, message.from_user.id, storage = storage)
+    options = []
+    for x, y in first.items():
+        if x.startswith('option') and y:
+            options.append(input_poll_option.InputPollOption(text= first[x]))
+    object_poll = await message.answer_poll( 
+                                            question= first['question'], 
+                                            open_period = first['open_period'], 
+                                            options= options, 
+                                            type = 'regular',
+                                            is_anonymous= False,
+                                            allows_multiple_answers = True                       
+                                            )
+    await storage.redis.set(name = str(message.from_user.id)+ '_regular_id', value = object_poll.message_id , ex = 60)
+
 @router.poll_answer()
 async def poll_answer_handler(poll_answer: PollAnswer):
-    print(poll_answer)
-    message_id = await storage.redis.get(name = str(poll_answer.user.id) + '_regular')
+    print(type(poll_answer.option_ids))
+    d = await storage.redis.get(name = str(poll_answer.user.id) + '_regular')
+    d = json.loads(d.decode())
+    if d['firstans']:
+        print(type(poll_answer.option_ids))
+        print(type(d['firstans']))
+        if poll_answer.option_ids == json.loads(d['firstans']):
+            d['ans'] += 1
+        d['firstans'] = 0  
+    
+    elif d['secondans']:
+        if poll_answer.option_ids == json.loads(d['secondans']):
+            d['ans'] += 1
+        d['secondans'] = 0  
+    else:
+        if poll_answer.option_ids == json.loads(d['thirdans']):
+            d['ans'] += 1
+        d['thirdans'] = 0 
+
+    
+    if d['second']:
+        options = []
+        for x, y in d['second'].items():
+            if x.startswith('option') and y:
+                options.append(input_poll_option.InputPollOption(text= d['second'][x]))
+        object_poll = await bot.send_poll(  chat_id= poll_answer.user.id,
+                                            question= d['second']['question'], 
+                                            open_period = d['second']['open_period'], 
+                                            options= options, 
+                                            type = 'regular',
+                                            is_anonymous= False,
+                                            allows_multiple_answers = True                       
+                                            )
+        d['second'] = 0
+
+    elif d['third']:
+        options = []
+        for x, y in d['third'].items():
+            if x.startswith('option') and y:
+                options.append(input_poll_option.InputPollOption(text= d['third'][x]))
+        object_poll = await bot.send_poll(  chat_id= poll_answer.user.id,
+                                            question= d['third']['question'], 
+                                            open_period = d['third']['open_period'], 
+                                            options= options, 
+                                            type = 'regular',
+                                            is_anonymous= False,
+                                            allows_multiple_answers = True                       
+                                            )
+        d['third'] = 0
+    else:
+        await bot.send_message(chat_id = poll_answer.user.id, text =f"правильно ответил: {d['ans']}")    
+    
+    message_id = await storage.redis.get(name = str(poll_answer.user.id) + '_regular_id')
     await bot.stop_poll(chat_id = poll_answer.user.id, message_id = message_id, reply_markup= kb.choice)
+    await storage.redis.set(name = str(poll_answer.user.id)+ '_regular_id', value = object_poll.message_id , ex = 60)
+    await storage.redis.set(name = str(poll_answer.user.id)+ '_regular', value = json.dumps(d), ex = 60)
     #flags = getattr(handler, 'flags', {})
     #message = flags.get('message')
     #print(poll_answer.poll.extra_data)
