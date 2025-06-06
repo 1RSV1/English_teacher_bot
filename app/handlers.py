@@ -1,29 +1,22 @@
 from aiogram import F, Router, Bot
-from aiogram.handlers import BaseHandler
 from aiogram.filters.command import Command, CommandStart
-from aiogram.types import Message, CallbackQuery, InputMediaPhoto, Video, InputMediaVideo, ForceReply, LabeledPrice, PreCheckoutQuery, input_poll_option, PollAnswer, Poll, MessageEntity, User, FSInputFile, ContentType
+from aiogram.types import Message, CallbackQuery, ForceReply, LabeledPrice, PreCheckoutQuery, input_poll_option, PollAnswer, Poll, MessageEntity, User, FSInputFile, ContentType
 import app.keyboards as kb
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from app.middlewares import PollAnswerMiddle, PollMiddle, MessageMiddle # импорт мидлвари
 import app.database.requests as rq
-import datetime
 from app.database.requests import  Questions, MyCallback3, Variable, Variable2, Payment, Conditionals, Control
-from app.database.models import async_session, Preposition, Test2, Test, Question, Quizes, Regular
+from app.database.models import async_session, Preposition, Test2, Test,  Quizes, Regular, Present_Past, Present_Past_Quiz, Present_Past_Regular, Present_Past_Compile
 from sqlalchemy import select, func
-from aiogram.methods import DeleteMessage, EditMessageText
 from aiogram.utils.chat_action import ChatActionMiddleware
 from aiogram.fsm.storage.redis import RedisStorage
-import os
-import math
-import time, json, string
-import random
+import os, time, json, string, datetime, random
 from aiogram import flags
-from collections import Counter
 from dotenv import load_dotenv
-from typing import  Dict, Any
 from openai import OpenAI
 from pydub import AudioSegment
+
 load_dotenv()   
 bot = Bot(token=os.getenv('TOKEN'))
 router = Router()
@@ -37,6 +30,64 @@ from gtts import gTTS
 
 
 storage = RedisStorage.from_url('redis://default:%2CE%3FYhUP7rq%2C%5C54@147.45.106.233:6379')
+
+@router.message(Command('present_and_past'))
+async def cmd_present(message: Message):
+    task_level = await rq.db_helper(message.from_user.id, task_param = 'present_level_time', command= 'present_level_time')
+    if task_level:
+        if task_level[-4:-3] != '':
+            if int(task_level[-4:-3]) == 2 and int(task_level[-1]) == 0:
+                level = int(task_level[:-4])*3
+                await message.answer('Выбери пары из левой и правой колонки по смыслу', reply_markup= await rq.test('pr', Present_Past_Compile, level + 1, storage = storage))
+            #await message.answer(' ?', reply_markup= await rq.collect_words(id = 1, table = Question, storage = storage)) CONDITIONALS
+            elif int(task_level[-4:-3]) == 5 and int(task_level[-1]) == 1:
+                await rq.retrieve_three_regulars(Present_Past_Regular , int(task_level[:-4])*3 + 1, message.from_user.id, storage = storage, bot = bot)
+                #await message.answer(' ?', reply_markup= await rq.collect_words(id = 1, table = Question, storage = storage)) REGULARS
+            elif int(task_level[-4:-3]) == 9 and int(task_level[-1]) == 2:
+                await rq.retrieve_three_quizes(Present_Past_Quiz, int(task_level[:-4])*3 + 1, message.from_user.id, storage = storage, bot = bot)
+                #await message.answer(' ?', reply_markup= await rq.collect_words(id = 1, table = Question, storage = storage)) QUIZ
+            else: 
+                await message.answer(text= await rq.three_options_sentence(int(task_level[:-2]), Present_Past), reply_markup= await rq.three_options_keyboard('pr', int(task_level[:-2]), Present_Past))   
+        else: 
+                await message.answer(text= await rq.three_options_sentence(int(task_level[:-2]), Present_Past), reply_markup= await rq.three_options_keyboard('pr', int(task_level[:-2]), Present_Past))                    
+    else:
+        await message.answer('Сегодня ты уже прошел тест. Новый появится завтра') #reply_markup= await kb.two_options(data[2], 'questions'
+
+@router.message(Command('past'))
+async def cmd_present(message: Message):
+    task_level = await rq.db_helper(message.from_user.id, task_param = 'past_level_time', command= 'past_level_time')
+    if task_level:
+        if int(task_level[-4:-3]) == 2 and int(task_level[-1]) == 0:
+            await message.answer('Выбери пары из левой и правой колонки по смыслу', reply_markup= await rq.test(Test, int(task_level[:-4])*5 + 1))
+            #await message.answer(' ?', reply_markup= await rq.collect_words(id = 1, table = Question, storage = storage)) CONDITIONALS
+        elif int(task_level[-4:-3]) == 5 and int(task_level[-1]) == 1:
+            await rq.retrieve_three_regulars(Regular , int(task_level[:-4])*3 + 1, message.from_user.id, storage = storage, bot = bot)
+            #await message.answer(' ?', reply_markup= await rq.collect_words(id = 1, table = Question, storage = storage)) REGULARS
+        elif int(task_level[-4:-3]) == 9 and int(task_level[-1]) == 2:
+            await rq.retrieve_three_quizes(Quizes , int(task_level[:-4])*3 + 1, message.from_user.id, storage = storage, bot = bot)
+            #await message.answer(' ?', reply_markup= await rq.collect_words(id = 1, table = Question, storage = storage)) QUIZ
+        else: 
+            await message.answer(text= await rq.three_options_sentence(int(task_level), Test2), reply_markup= await rq.three_options_keyboard('t', int(task_level), Test2))               
+    else:
+        await message.answer('Сегодня ты уже прошел тест. Новый появится завтра') #reply_markup= await kb.two_options(data[2], 'questions'
+
+@router.message(Command('future'))
+async def cmd_present(message: Message):
+    task_level = await rq.db_helper(message.from_user.id, task_param = 'past_level_time', command= 'past_level_time')
+    if task_level:
+        if int(task_level[-4:-3]) == 2 and int(task_level[-1]) == 0:
+            await message.answer('Выбери пары из левой и правой колонки по смыслу', reply_markup= await rq.test(Test, int(task_level[:-4])*5 + 1))
+            #await message.answer(' ?', reply_markup= await rq.collect_words(id = 1, table = Question, storage = storage)) CONDITIONALS
+        elif int(task_level[-4:-3]) == 5 and int(task_level[-1]) == 1:
+            await rq.retrieve_three_regulars(Regular , int(task_level[:-4])*3 + 1, message.from_user.id, storage = storage, bot = bot)
+            #await message.answer(' ?', reply_markup= await rq.collect_words(id = 1, table = Question, storage = storage)) REGULARS
+        elif int(task_level[-4:-3]) == 9 and int(task_level[-1]) == 2:
+            await rq.retrieve_three_quizes(Quizes , int(task_level[:-4])*3 + 1, message.from_user.id, storage = storage, bot = bot)
+            #await message.answer(' ?', reply_markup= await rq.collect_words(id = 1, table = Question, storage = storage)) QUIZ
+        else: 
+            await message.answer(text= await rq.three_options_sentence(int(task_level), Test2), reply_markup= await rq.three_options_keyboard('t', int(task_level), Test2))               
+    else:
+        await message.answer('Сегодня ты уже прошел тест. Новый появится завтра') #reply_markup= await kb.two_options(data[2], 'questions'
 
 
 
@@ -83,22 +134,8 @@ async def cmd_start(message: Message):
 @router.message(Command('quiz'), flags={'chat_action': 'typing', 'rate_limit': {'rate': 5}})
 @flags.chat_action(initial_sleep=0, action="typing", interval=3)
 async def cmd_poll(message: Message):
-    first = await rq.retrieve_three_quizes(Quizes ,1, message.from_user.id, storage = storage)
-    option1 = first['option1']
-    options = []
-    for x, y in first.items():
-        if x.startswith('option') and y:
-            options.append(input_poll_option.InputPollOption(text= first[x]))
-    random.shuffle(options)        
-    object_poll = await message.answer_poll( 
-        question= first['question'], 
-        open_period = int(first['open_period']), # переделать в цифру в бд
-        options= options, 
-        correct_option_id= options.index(input_poll_option.InputPollOption(text = option1)),
-        type = 'quiz',
-        explanation = first['explanation'], 
-        explanation_entities = [MessageEntity(type = 'text_mention', offset = 0, length = len(first['explanation']), user = User(id = message.from_user.id, is_bot = False, first_name = 'vad'))]                        
-        )
+    await rq.retrieve_three_quizes(Quizes ,1, message.from_user.id, storage = storage, bot = bot)
+    
     
     
 
@@ -171,23 +208,13 @@ async def poll_answer_handler(poll: Poll):
 
 @router.message(Command('regular'))
 async def cmd_regular(message: Message):
-    first = await rq.retrieve_three_regulars(Regular , 1, message.from_user.id, storage = storage)
-    options = []
-    for x, y in first.items():
-        if x.startswith('option') and y:
-            options.append(input_poll_option.InputPollOption(text= first[x]))
-    object_poll = await message.answer_poll( 
-                                            question= first['question'], 
-                                            open_period = first['open_period'], 
-                                            options= options, 
-                                            type = 'regular',
-                                            is_anonymous= False,
-                                            allows_multiple_answers = True                       
-                                            )
-    await storage.redis.set(name = str(message.from_user.id)+ '_regular_id', value = object_poll.message_id , ex = 60)
+    await rq.retrieve_three_regulars(Regular , 1, message.from_user.id, storage = storage, bot = bot)
+    
 
 @router.poll_answer()
 async def poll_answer_handler(poll_answer: PollAnswer):
+    message_id = await storage.redis.get(name = str(poll_answer.user.id) + '_regular_id')
+    await bot.stop_poll(chat_id = poll_answer.user.id, message_id = message_id, reply_markup= kb.choice)
     print(type(poll_answer.option_ids))
     d = await storage.redis.get(name = str(poll_answer.user.id) + '_regular')
     d = json.loads(d.decode())
@@ -222,7 +249,7 @@ async def poll_answer_handler(poll_answer: PollAnswer):
                                             allows_multiple_answers = True                       
                                             )
         d['second'] = 0
-
+        await storage.redis.set(name = str(poll_answer.user.id)+ '_regular_id', value = object_poll.message_id , ex = 60)
     elif d['third']:
         options = []
         for x, y in d['third'].items():
@@ -237,12 +264,10 @@ async def poll_answer_handler(poll_answer: PollAnswer):
                                             allows_multiple_answers = True                       
                                             )
         d['third'] = 0
+        await storage.redis.set(name = str(poll_answer.user.id)+ '_regular_id', value = object_poll.message_id , ex = 60)
     else:
-        await bot.send_message(chat_id = poll_answer.user.id, text =f"правильно ответил: {d['ans']}")    
-    
-    message_id = await storage.redis.get(name = str(poll_answer.user.id) + '_regular_id')
-    await bot.stop_poll(chat_id = poll_answer.user.id, message_id = message_id, reply_markup= kb.choice)
-    await storage.redis.set(name = str(poll_answer.user.id)+ '_regular_id', value = object_poll.message_id , ex = 60)
+        await bot.send_message(chat_id = poll_answer.user.id, text =f"правильно ответил: {d['ans']}")
+
     await storage.redis.set(name = str(poll_answer.user.id)+ '_regular', value = json.dumps(d), ex = 60)
     #flags = getattr(handler, 'flags', {})
     #message = flags.get('message')
@@ -272,6 +297,20 @@ async def Choose_one(message: Message):
     else:
         await message.answer('Новый тест пока что недоступен. Дам знать, когда появится')    
 
+@router.callback_query(Control.filter(F.mark == 'pr'))
+async def my_callback(query: CallbackQuery, callback_data: Control):
+    if callback_data.ans == '0': # нулевой индекс всегда правильный ответ(лист перемешан)
+        callback_data.rightans += 1
+        await query.answer("✅✅✅")
+    else:
+        await query.answer("❌❌❌")
+
+    if callback_data.id%10 == 0:
+        await rq.db_helper(query.from_user.id, task_param = 'present_level_time', stars = int(callback_data.rightans), level = round(callback_data.rightans/100, 2), task_level = callback_data.id)
+        await query.message.edit_text(text=f'Тест пройден. Здесь анализ ответов исходя из  {callback_data.rightans}') # написать функцию
+    else:    
+        await query.message.edit_text(text= await rq.three_options_sentence(callback_data.id + 1, Present_Past), reply_markup= await rq.three_options_keyboard('pr', callback_data.id + 1, Present_Past, callback_data.rightans))
+
 @router.callback_query(Control.filter(F.mark == 't'))
 async def my_callback(query: CallbackQuery, callback_data: Control):
     if callback_data.ans == '0': # нулевой индекс всегда правильный ответ(лист перемешан)
@@ -290,8 +329,6 @@ async def my_callback(query: CallbackQuery, callback_data: Control):
 
 
 
-
-
 #TEST words--------------------------------------------------------------------------------------------------------------------
 @router.message(Command('conditionals'))
 async def compilesentence(message: Message):
@@ -302,37 +339,39 @@ async def compilesentence(message: Message):
         await message.answer('Новый тест пока что не доступен')  
 
    
-@router.callback_query(Conditionals.filter())
+@router.callback_query(Conditionals.filter(F.mark == 'pr' or F.mark == 't'))
 async def my_callback(query: CallbackQuery, callback_data: Conditionals):
+    if callback_data.mark == 'pr':
+        table = Present_Past_Compile
     listt = callback_data.keyboard.split(',')
     if  not callback_data.firstans or not callback_data.secondans:
-        await query.message.edit_text('Выбери пары из левой и правой колонки по смыслу', reply_markup= await rq.test(Test, callback_data.id, listt, callback_data.firstans, callback_data.secondans, callback_data.rightans, callback_data.falseans))
+        await query.message.edit_text('Выбери пары из левой и правой колонки по смыслу', reply_markup= await rq.test(table, callback_data.id, listt, callback_data.firstans, callback_data.secondans, callback_data.rightans, callback_data.falseans))
         await query.answer("...")
     elif int(callback_data.firstans[-1]) == int(callback_data.secondans[-1]) - 4:
         listt.remove(callback_data.firstans)
         listt.remove(callback_data.secondans)
         if len(listt) > 2:
-            await query.message.edit_text('Выбери пары из левой и правой колонки по смыслу', reply_markup= await rq.test(Test, callback_data.id, listt, '', '', callback_data.rightans + 1, callback_data.falseans))
+            await query.message.edit_text('Выбери пары из левой и правой колонки по смыслу', reply_markup= await rq.test(table, callback_data.id, listt, '', '', callback_data.rightans + 1, callback_data.falseans))
             await query.answer("✅✅✅")
         else:
-            if str(callback_data.id)[-1] == '0' or str(callback_data.id)[-1] == '5': # если номер теста заканчивается на 0 или 5 question_level_time
+            if callback_data.id % 3 == 0: # если номер теста заканчивается на 0 или 5 question_level_time
                 #callback_data.rightans += 1 добавить балл аза последнюю пару
                 rightans = callback_data.rightans - callback_data.falseans
                 await rq.db_helper(query.from_user.id, task_param = 'words_level_time', command= 'query')
-                if str(int(callback_data.id) - 5) > await rq.db_helper(query.from_user.id, task_param = 'words_level_time', command= 'query'):
+                if str(int(callback_data.id) - 3) > await rq.db_helper(query.from_user.id, task_param = 'words_level_time', command= 'query'):
                     await query.message.edit_text('Урок уже был пройден')
                 elif rightans > 0:
-                    await rq.db_helper(query.from_user.id, task_param = 'words_level_time', stars = rightans, level = rightans/100, task_level = 5)
+                    await rq.db_helper(query.from_user.id, task_param = 'words_level_time', stars = rightans, level = rightans/100, task_level = 3)
                     await query.message.edit_text(f'Урок пройден. Плюс {rightans}⭐') # уровень и время тоже надо записать 
                 else:
-                    await rq.db_helper(query.from_user.id, task_param = 'words_level_time', task_level = 5)
+                    await rq.db_helper(query.from_user.id, task_param = 'words_level_time', task_level = 3)
                     await query.message.edit_text(f'Урок пройден. Звезд не начислено') # уровень и время тоже надо записать
             else:
-                await query.message.edit_text('Выбери пары из левой и правой колонки по смыслу', reply_markup= await rq.test(Test, callback_data.id + 1, None, '', '', callback_data.rightans + 1, callback_data.falseans))
+                await query.message.edit_text('Выбери пары из левой и правой колонки по смыслу', reply_markup= await rq.test(table, callback_data.id + 1, None, '', '', callback_data.rightans + 1, callback_data.falseans))
                 await query.answer("next...")
 
     else:
-        await query.message.edit_text('Выбери пары из левой и правой колонки по смыслу', reply_markup= await rq.test(Test, callback_data.id, listt, '', '', callback_data.rightans, callback_data.falseans + 1))
+        await query.message.edit_text('Выбери пары из левой и правой колонки по смыслу', reply_markup= await rq.test(table, callback_data.id, listt, '', '', callback_data.rightans, callback_data.falseans + 1))
         await query.answer("❌❌❌")
 
 

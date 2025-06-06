@@ -1,7 +1,7 @@
 from app.database.models import async_session, async_session2, engine
-from app.database.models import   Preposition,  Users, Question, Test, Test2
+from app.database.models import   Preposition,  Users, Test, Test2
 from sqlalchemy import select, update, delete, func
-from aiogram.types import Message, InputMediaPhoto, InputMediaVideo, InlineKeyboardButton
+from aiogram.types import Message, InputMediaPhoto, InputMediaVideo, InlineKeyboardButton, input_poll_option, MessageEntity, User
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import random, datetime
 from aiogram.filters.callback_data import CallbackData
@@ -37,6 +37,7 @@ class Payment(CallbackData, prefix='pay'):
     mark: str 
 
 class Conditionals(CallbackData, prefix='test'):
+    mark: str
     id: int
     keyboard: str 
     firstans: str
@@ -74,7 +75,7 @@ async def three_options_keyboard(mark, id, table, rightans= 0, adjust = 1):
     
        
 
-async def test(table, id, listt='', firstans= '', secondans= '', rightans= 0, falseans= 0, storage = RedisStorage):
+async def test(mark, table, id, listt='', firstans= '', secondans= '', rightans= 0, falseans= 0, storage = None):
     #async with async_session() as session:
         value = await storage.redis.get(name = id)
         if value:
@@ -99,8 +100,8 @@ async def test(table, id, listt='', firstans= '', secondans= '', rightans= 0, fa
                 x = ','.join(listindex)      
         keyboard = InlineKeyboardBuilder()
         for i in range(len(list)//2):
-            keyboard.add(InlineKeyboardButton(text = list[i][:-1], callback_data= Conditionals(id= id, keyboard= x, firstans= list[i][-1], secondans= secondans, rightans= rightans, falseans= falseans).pack()))
-            keyboard.add(InlineKeyboardButton(text = list[len(list)//2 + i][:-1], callback_data= Conditionals(id= id, keyboard= x, firstans=firstans, secondans= str(list[len(list)//2 + i][-1]), rightans= rightans, falseans= falseans).pack()))
+            keyboard.add(InlineKeyboardButton(text = list[i][:-1], callback_data= Conditionals(mark = mark, id= id, keyboard= x, firstans= list[i][-1], secondans= secondans, rightans= rightans, falseans= falseans).pack()))
+            keyboard.add(InlineKeyboardButton(text = list[len(list)//2 + i][:-1], callback_data= Conditionals(mark = mark, id= id, keyboard= x, firstans=firstans, secondans= str(list[len(list)//2 + i][-1]), rightans= rightans, falseans= falseans).pack()))
         return keyboard.adjust(2).as_markup()
 
 async def retrieve_datalist(table, id):
@@ -120,7 +121,7 @@ async def retrieve_datalist(table, id):
         #print(listt)         
         return  listt   
 
-async def retrieve_three_quizes(table, id, tg_id, storage = None):
+async def retrieve_three_quizes(table, id, tg_id, storage = None, bot = None):
     async with async_session() as session:
         d = {}
         info = await session.execute(select(table).where(table.id >= id).where(table.id < id + 3)) 
@@ -132,10 +133,24 @@ async def retrieve_three_quizes(table, id, tg_id, storage = None):
         d['third'] = db_string_list[2].__dict__
         d['ans'] = 0
         await storage.redis.set(name = str(tg_id)+ '_quiz', value = json.dumps(d), ex = 60)
-        
-        return first
+        option1 = first['option1']
+        options = []
+        for x, y in first.items():
+            if x.startswith('option') and y:
+                options.append(input_poll_option.InputPollOption(text= first[x]))
+        random.shuffle(options)        
+        await bot.send_poll( 
+            chat_id = tg_id,
+            question= first['question'], 
+            open_period = int(first['open_period']), # переделать в цифру в бд
+            options= options, 
+            correct_option_id= options.index(input_poll_option.InputPollOption(text = option1)),
+            type = 'quiz',
+            explanation = first['explanation'], 
+            explanation_entities = [MessageEntity(type = 'text_mention', offset = 0, length = len(first['explanation']), user = User(id = tg_id, is_bot = False, first_name = 'vad'))]                        
+            )
     
-async def retrieve_three_regulars(table, id, tg_id, storage = None):
+async def retrieve_three_regulars(table, id, tg_id, storage = None, bot = None):
     async with async_session() as session:
         d = {}
         info = await session.execute(select(table).where(table.id >= id).where(table.id < id + 3)) 
@@ -153,7 +168,19 @@ async def retrieve_three_regulars(table, id, tg_id, storage = None):
         d['third'] = {k: d['third'][k] for k in sorted(d['third'])}
         d['ans'] = 0
         await storage.redis.set(name = str(tg_id)+ '_regular', value = json.dumps(d), ex = 60)
-        return first
+        options = []
+        for x, y in first.items():
+            if x.startswith('option') and y:
+                options.append(input_poll_option.InputPollOption(text= first[x]))
+        object_poll = await bot.send_poll(  chat_id = tg_id,
+                                            question= first['question'], 
+                                            open_period = first['open_period'], 
+                                            options= options, 
+                                            type = 'regular',
+                                            is_anonymous= False,
+                                            allows_multiple_answers = True                       
+                                            )
+        await storage.redis.set(name = str(tg_id)+ '_regular_id', value = object_poll.message_id , ex = 60)
         
 
     
@@ -258,7 +285,7 @@ async def update_stars(stars, tg_id):
 
 
 ########################################################################################################################################################################################
-async def db_helper(tg_id, task_param = '', command= None, stars = 0, level = 0, task_level = 0): #stars, level, wordslevel, wordstime, rightans,  tg_id
+async def db_helper(tg_id, task_param = '', command= None, stars = 0, level = 0, task_level = 0, bot = None): #stars, level, wordslevel, wordstime, rightans,  tg_id
     #instance = await session.get(Users, id) <app.database.models.Users object at 0x000001E98C6D7940>
     async with async_session() as session: 
         info = await session.execute(select(Users).where(Users.tg_id == tg_id)) 
@@ -274,11 +301,21 @@ async def db_helper(tg_id, task_param = '', command= None, stars = 0, level = 0,
                 await session.commit()
                 return level_time[:-9]  
         else:     
-            setattr(db_string, task_param, str(int(level_time[:-9]) + task_level) + level_time[-9:]) # запись старс левел и уровня таска, функция без команды
+            setattr(db_string, task_param, str(int(level_time[:-11]) + task_level) + level_time[-9:]) # запись старс левел и уровня таска, функция без команды
             db_string.stars += stars
+            prev_level = db_string.level
             db_string.level += round(level, 2)
+            if (datetime.datetime.now().date() - db_string.updatedAt.date()).days > 1: # STREAK TIMEDELTA
+                db_string.streak = 0
+            elif (datetime.datetime.now().date() - db_string.updatedAt.date()).days == 0:
+                pass 
+            else:   
+                db_string.streak += 1
+            new_level = db_string.level
             db_string.updatedAt = datetime.datetime.now() 
-            await session.commit()        
+            await session.commit()     
+            if int(new_level) >  int(prev_level):
+                await bot.send_message(chat_id = tg_id, text = f'Вы перешли на {int(new_level)} уровень', message_effect_id= '5046509860389126442')   
 
 #НЕ ИСПОЛЬЗУЕТСЯ---------------------------------------------------------------------------------------------------------------------------------------
 
