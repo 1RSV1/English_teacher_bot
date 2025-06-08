@@ -7,7 +7,7 @@ from aiogram.fsm.context import FSMContext
 from app.middlewares import PollAnswerMiddle, PollMiddle, MessageMiddle # импорт мидлвари
 import app.database.requests as rq
 from app.database.requests import  Questions, MyCallback3, Variable, Variable2, Payment, Conditionals, Control
-from app.database.models import async_session, Preposition, Test2, Test,  Quizes, Regular, Present_Past, Present_Past_Quiz, Present_Past_Regular, Present_Past_Compile
+from app.database.models import async_session, Preposition, Test2, Test,  Quizes, Regular, Present_Past, Present_Past_Quiz, Present_Past_Regular, Present_Past_Compile, Listening
 from sqlalchemy import select, func
 from aiogram.utils.chat_action import ChatActionMiddleware
 from aiogram.fsm.storage.redis import RedisStorage
@@ -27,6 +27,15 @@ router.poll.middleware(PollMiddle())
 router.message.middleware(ChatActionMiddleware())
 from gtts import gTTS
 
+
+class SomeClass(StatesGroup): # FSM
+    translation = State()
+    number = State()
+    uncountable = State()
+    word = State()
+    trans = State()
+    list = State()
+    voice = State()
 
 
 storage = RedisStorage.from_url('redis://default:%2CE%3FYhUP7rq%2C%5C54@147.45.106.233:6379')
@@ -89,9 +98,43 @@ async def cmd_present(message: Message):
     else:
         await message.answer('Сегодня ты уже прошел тест. Новый появится завтра') #reply_markup= await kb.two_options(data[2], 'questions'
 
+@router.message(Command('listening')) # lambda message: message.voice is not None
+async def cmd_listening(message: Message):
+    task_level = 1 #await rq.db_helper(message.from_user.id, task_param = 'listening_level_time', command= 'listening_level_time')
+    if task_level:
+        voice = FSInputFile(f'listening/{task_level}.opus', filename = 'gg')
+        await message.answer_voice(voice = voice, reply_markup= await rq.three_options_keyboard('l', int(task_level), Listening))
 
 
-@router.message(lambda message: message.voice is not None)
+@router.message(Command('speaking')) # lambda message: message.voice is not None
+async def handle_voice_state(message: Message, state: FSMContext):
+    await state.update_data(sentence = 'how are you?')
+    await state.set_state(SomeClass.voice)
+
+
+@router.message(SomeClass.voice) # lambda message: message.voice is not None
+async def handle_voice_state(message: Message, state: FSMContext):
+    if message.voice is None:
+        state.clear()
+        await message.answer(text = ' It is a lesson of speaking . Send a voice message next time .')
+    else:    
+        await bot.download(message.voice.file_id, f'audio/{message.from_user.id}.mp3')
+        client = OpenAI(
+        #base_url="https://api.deepseek.com",
+        api_key = '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'
+        )
+        #model = 'whisper-1'
+        transcription = client.audio.transcriptions.create(
+                model= 'whisper-1',
+                file= open(f'audio/{message.from_user.id}.mp3', "rb"),
+                response_format="text"  # or "json", "srt", "verbose_json", "vtt"
+                )
+        data = await state.get_data()
+        await message.answer(text = f"транскрипция бота: {transcription} \n начальное предложение: {data['sentence']}")
+        state.clear()
+
+
+@router.message() # lambda message: message.voice is not None
 async def handle_all_audios(message: Message):
     await bot.download(message.voice.file_id, f'audio/{message.from_user.id}.mp3')
     client = OpenAI(
@@ -296,6 +339,22 @@ async def Choose_one(message: Message):
         await message.answer(text= await rq.three_options_sentence(int(task_level), Test2), reply_markup= await rq.three_options_keyboard('t', int(task_level), Test2))
     else:
         await message.answer('Новый тест пока что недоступен. Дам знать, когда появится')    
+
+@router.callback_query(Control.filter(F.mark == 'l'))
+async def my_callback(query: CallbackQuery, callback_data: Control):
+    if callback_data.ans == '0': # нулевой индекс всегда правильный ответ(лист перемешан)
+        callback_data.rightans += 1
+        await query.answer("✅✅✅")
+    else:
+        await query.answer("❌❌❌")
+
+    if callback_data.id%3 == 0:
+        await rq.db_helper(query.from_user.id, task_param = 'listening_level_time', stars = int(callback_data.rightans), level = round(callback_data.rightans/100, 2), task_level = callback_data.id)
+        await query.message.answer(text=f'Тест пройден. Здесь анализ ответов исходя из  {callback_data.rightans}') # написать функцию
+    else:   
+        voice = FSInputFile(f'listening/{callback_data.id + 1}.opus', filename = 'gg') 
+        await query.message.answer_voice(voice = voice, reply_markup= await rq.three_options_keyboard('l', callback_data.id + 1, Listening, callback_data.rightans))
+
 
 @router.callback_query(Control.filter(F.mark == 'pr'))
 async def my_callback(query: CallbackQuery, callback_data: Control):
@@ -568,6 +627,7 @@ class SomeClass(StatesGroup): # FSM
     word = State()
     trans = State()
     list = State()
+    voice = State()
 
 
 #@router.callback_query(MyCallback3.filter()) 
