@@ -55,6 +55,13 @@ class Control(CallbackData, prefix='c'):
 async def markupp(id, info) :
     return   
 
+async def retrieve_three_ai_sentences(table, id):
+    async with async_session() as session:
+        l = []
+        info = await session.execute(select(table).where(table.id >= id).where(table.id < id + 3)) 
+        db_string_list = info.scalars().all()
+        l = [x.sentence for x in db_string_list]
+        return l
 
 async def three_options_sentence(id, table):
     async with async_session() as session:
@@ -301,7 +308,7 @@ async def db_helper(tg_id, task_param = '', command= None, stars = 0, level = 0,
                 await session.commit()
                 return level_time[:-9]  
         else:     
-            setattr(db_string, task_param, str(int(level_time[:-11]) + task_level) + level_time[-9:]) # запись старс левел и уровня таска, функция без команды
+            setattr(db_string, task_param, str(int(level_time[:-11]) + int(task_level[:-2])) + ' ' + str(int(level_time[-10]) + int(task_level[-1])) + level_time[-9:]) # запись старс левел и уровня таска, функция без команды
             db_string.stars += stars
             prev_level = db_string.level
             db_string.level += round(level, 2)
@@ -396,7 +403,7 @@ async def retrieve_top_players(tg_id):
             if top < 6:  
                 if tupl[0] == tg_id:
                     is_in = True    
-                message += f'{tupl[1]} level: {tupl[2]} \n'  
+                message += f'{tupl[1]} level: {round(tupl[2], 2)} \n'  
                 top += 1
             else:
                 if not is_in:
