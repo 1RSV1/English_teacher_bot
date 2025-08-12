@@ -207,22 +207,22 @@ async def handle_voice_state(message: Message, state: FSMContext):
 
 
 name = []
-model = whisper.load_model("small")
+#model = whisper.load_model("small")
 @router.message(lambda message: message.voice is not None, flags={'chat_action': 'record_voice', 'rate_limit': {'rate': 5}}) # lambda message: message.voice is not None
 async def handle_all_audios(message: Message):
     await bot.download(message.voice.file_id, f'audio/{message.from_user.id}.mp3')
       
     #model = 'whisper-1'
-    '''
+    
     transcription = client.audio.transcriptions.create(
             model= 'whisper-1',
             file= open(f'audio/{message.from_user.id}.mp3', "rb"),
             response_format="text"  # or "json", "srt", "verbose_json", "vtt"
             )
-    '''
     
-    result = model.transcribe(f'audio/{message.from_user.id}.mp3', fp16=False)
-    transcription = result["text"]
+    
+    #result = model.transcribe(f'audio/{message.from_user.id}.mp3', fp16=False)
+    #transcription = result["text"]
     print(transcription)        
     name = ['Vadim']
     data = [{"role": "system", "content": f"You are a friendly and professional English teacher. If the user said their name you should wrap his name in curly brackets in response. If the response requires the name of the user try to find it in  {name} object only if it's 100% necessary. Your responses should be brief, concise, and pedagogically helpful (1-2 sentences max). If the user has said only one word 'repeat' in their prompt, respond by asking them to repeat the specific word or phrase they want you to clarify, then wait for their response before continuing. Focus on clear explanations with simple examples when needed. Correct mistakes gently and encourage learning."}, {'role': 'user', 'content': transcription}]
@@ -831,5 +831,6 @@ async def open_ai(message: Message):
     await bot.send_voice(chat_id = message.from_user.id, voice = cat, reply_markup = kb.choice)
 
     '''
+
 
 
