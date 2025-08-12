@@ -19,6 +19,7 @@ from openai import OpenAI
 from pydub import AudioSegment
 import whisper
 from gtts import gTTS
+import re
 
 load_dotenv()   
 bot = Bot(token=os.getenv('TOKEN'))
@@ -830,4 +831,5 @@ async def open_ai(message: Message):
     await bot.send_voice(chat_id = message.from_user.id, voice = cat, reply_markup = kb.choice)
 
     '''
+
 
