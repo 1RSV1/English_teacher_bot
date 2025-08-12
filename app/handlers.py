@@ -41,6 +41,13 @@ class SomeClass(StatesGroup): # FSM
     voice = State()
 
 
+client = OpenAI(
+    #base_url="https://api.deepseek.com",
+    api_key = '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'
+    )    
+
+
+
 storage = RedisStorage.from_url('redis://default:%2CE%3FYhUP7rq%2C%5C54@147.45.106.233:6379')
 
 @router.message(CommandStart())
@@ -823,3 +830,4 @@ async def open_ai(message: Message):
     await bot.send_voice(chat_id = message.from_user.id, voice = cat, reply_markup = kb.choice)
 
     '''
+
