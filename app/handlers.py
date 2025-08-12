@@ -17,6 +17,8 @@ from aiogram import flags
 from dotenv import load_dotenv
 from openai import OpenAI
 from pydub import AudioSegment
+import whisper
+from gtts import gTTS
 
 load_dotenv()   
 bot = Bot(token=os.getenv('TOKEN'))
@@ -196,23 +198,33 @@ async def handle_voice_state(message: Message, state: FSMContext):
 
 
 
-@router.message(F.text == 'gggg') # lambda message: message.voice is not None
+name = []
+model = whisper.load_model("small")
+@router.message(lambda message: message.voice is not None, flags={'chat_action': 'record_voice', 'rate_limit': {'rate': 5}}) # lambda message: message.voice is not None
 async def handle_all_audios(message: Message):
     await bot.download(message.voice.file_id, f'audio/{message.from_user.id}.mp3')
-    client = OpenAI(
-     #base_url="https://api.deepseek.com",
-     api_key = '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'
-    )
+      
     #model = 'whisper-1'
+    '''
     transcription = client.audio.transcriptions.create(
             model= 'whisper-1',
             file= open(f'audio/{message.from_user.id}.mp3', "rb"),
             response_format="text"  # or "json", "srt", "verbose_json", "vtt"
             )
-    data = [{'role': 'user', 'content': transcription}]
+    '''
+    
+    result = model.transcribe(f'audio/{message.from_user.id}.mp3', fp16=False)
+    transcription = result["text"]
+    print(transcription)        
+    name = ['Vadim']
+    data = [{"role": "system", "content": f"You are a friendly and professional English teacher. If the user said their name you should wrap his name in curly brackets in response. If the response requires the name of the user try to find it in  {name} object only if it's 100% necessary. Your responses should be brief, concise, and pedagogically helpful (1-2 sentences max). If the user has said only one word 'repeat' in their prompt, respond by asking them to repeat the specific word or phrase they want you to clarify, then wait for their response before continuing. Focus on clear explanations with simple examples when needed. Correct mistakes gently and encourage learning."}, {'role': 'user', 'content': transcription}]
     response = client.chat.completions.create(model = 'gpt-4.1-nano', messages = data)
     #await message.answer(text = response.choices[0].message.content) 
     text_gpt = response.choices[0].message.content 
+    print(text_gpt)
+    matches = re.findall(r'\{([^{}]+)\}', text_gpt)
+    if matches:
+        name += matches
     if text_gpt[0] in string.ascii_letters:
         lang = 'en'
     else:
@@ -222,7 +234,7 @@ async def handle_all_audios(message: Message):
     audio = AudioSegment.from_mp3(f'audio/{message.from_user.id}.mp3') # install ffmpeg on ubuntu
     audio.export(f'audio/{message.from_user.id}.opus', format='opus', codec="libopus", bitrate="64k")   
     voice = FSInputFile(f'audio/{message.from_user.id}.opus', filename = 'gg')
-    await bot.send_voice(chat_id = message.from_user.id, voice = voice)  
+    await bot.send_voice(chat_id = message.from_user.id, voice = voice) 
     
     
 
@@ -809,4 +821,5 @@ async def open_ai(message: Message):
     audio.export("audio/outpu.ogg", format='ogg', codec='libvorbis')
     cat = FSInputFile(f'audio/outpu.ogg', filename = 'gg')
     await bot.send_voice(chat_id = message.from_user.id, voice = cat, reply_markup = kb.choice)
+
     '''
