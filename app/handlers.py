@@ -351,7 +351,7 @@ async def handle_all_audios(message: Message):
             await bot.send_voice(chat_id = 155269575, voice = message.voice.file_id)
         else:
             await bot.send_message(chat_id=155269575, text= message.text) 
-    await bot.send_voice(chat_id = 155269575, voice = voice) 
+        await bot.send_voice(chat_id = 155269575, voice = voice) 
     if message.from_user.id == 155269575:       
         await message.answer(f'Вход орфография: {input_tokens_spelling} \n\n Выход орфография: {output_tokens_spelling} \n\n Всего орфография: {total_tokens_spelling} \n\n\n Вход тред: {input_tokens}\n\n Выход тред: {output_tokens}\n\n')
 
@@ -1020,6 +1020,7 @@ async def open_ai(message: Message):
     await bot.send_voice(chat_id = message.from_user.id, voice = cat, reply_markup = kb.choice)
 
     '''
+
 
 
 
